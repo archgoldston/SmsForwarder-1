@@ -34,6 +34,7 @@ data class MsgInfo(
     var subId: Int = 0, //卡槽主键
     var callType: Int = 0, //通话类型：1.来电挂机 2.去电挂机 3.未接来电 4.来电提醒 5.来电接通 6.去电拨出
     var uid: Int = 0, //APP通知的UID
+    var iccid: String = "", // 接收这条短信的SIM卡ICCID；未知时保持空字符串
 ) : Serializable {
 
     val titleForSend = getTitleForSend()
