@@ -40,8 +40,8 @@ jobs:
         run: bash ./gradlew assembleRelease
 
       - name: Upload armeabi-v7a APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: SmsForwarder-armeabi-v7a
-          path: app/build/outputs/apk/release/*_armeabi-v7a_release.apk
+          path: build/app/outputs/apk/release/*_armeabi-v7a_release.apk
           if-no-files-found: error
