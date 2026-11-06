@@ -163,6 +163,117 @@ class PhoneUtils private constructor() {
             return infoList
         }
 
+        /**
+         * Read the IMEI only when Android exposes it to this app.
+         * On Android 10+ an ordinary app may be prohibited from reading IMEI even with READ_PHONE_STATE.
+         * Never return a fabricated identifier or overwrite a user-entered device name.
+         */
+        @SuppressLint("HardwareIds", "MissingPermission")
+        fun getDeviceImei(): String {
+            return try {
+                val context = XUtil.getContext()
+                if (ActivityCompat.checkSelfPermission(context, permission.READ_PHONE_STATE)
+                    != android.content.pm.PackageManager.PERMISSION_GRANTED
+                ) return ""
+                val telephony = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+                val candidate = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    telephony.imei
+                } else {
+                    telephony.deviceId
+                }
+                val imei = candidate?.trim().orEmpty()
+                if (imei.matches(Regex("[0-9]{15}"))) imei else ""
+            } catch (e: Exception) {
+                Log.w(TAG, "IMEI not accessible: ${e.javaClass.simpleName}")
+                ""
+            }
+        }
+
+        /** Get the ICCID belonging to this particular received SMS, not any other current SIM. */
+        @SuppressLint("HardwareIds", "MissingPermission")
+        fun getSmsIccId(subId: Int, simSlot: Int): String {
+            val context = XUtil.getContext()
+            if (ActivityCompat.checkSelfPermission(context, permission.READ_PHONE_STATE)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) return ""
+
+            val tm = try {
+                context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+            } catch (e: Exception) {
+                return ""
+            }
+
+            // Use the exact subscription from SMS broadcast whenever possible.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+                try {
+                    val manager = context.getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE)
+                        as SubscriptionManager
+                    val active = manager.activeSubscriptionInfoList.orEmpty()
+                    val bySubscription = if (subId >= 0) {
+                        active.singleOrNull { it.subscriptionId == subId }
+                    } else null
+                    val match = bySubscription
+                        ?: (if (simSlot >= 0) active.singleOrNull { it.simSlotIndex == simSlot } else null)
+                        ?: active.singleOrNull()
+                    if (match != null) {
+                        validIccid(match.iccId)?.let { return it }
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                            validIccid(tm.createForSubscriptionId(match.subscriptionId).simSerialNumber)
+                                ?.let { return it }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Subscription ICCID unavailable: ${e.javaClass.simpleName}")
+                }
+            }
+
+            // In some ROMs the active subscription list is empty even though subId works.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && subId >= 0) {
+                try {
+                    validIccid(tm.createForSubscriptionId(subId).simSerialNumber)?.let { return it }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Subscription SIM serial unavailable: ${e.javaClass.simpleName}")
+                }
+            }
+
+            // On customized older Qualcomm ROMs the subscription provider can be empty.
+            // For single-modem devices getSimSerialNumber() usually tracks the active card.
+            val singleModem = getSimSlotCount() == 1 || Build.VERSION.SDK_INT < Build.VERSION_CODES.M
+            if (singleModem || simSlot == 0) {
+                try {
+                    validIccid(tm.simSerialNumber)?.let { return it }
+                } catch (e: Exception) {
+                    Log.w(TAG, "SIM serial unavailable: ${e.javaClass.simpleName}")
+                }
+            }
+
+            // Read-only system property fallback on some old Qualcomm firmware.
+            // Never fall back to a different slot's property.
+            val propertyKeys = when {
+                simSlot == 1 -> arrayOf("ril.iccid.sim2")
+                simSlot == 0 || singleModem -> arrayOf("ril.iccid.sim1", "ril.iccid", "gsm.sim.iccid")
+                else -> emptyArray()
+            }
+            for (key in propertyKeys) {
+                validIccid(readSystemProperty(key))?.let { return it }
+            }
+            return "" // Unknown is safer than attributing an SMS to the wrong card.
+        }
+
+        private fun validIccid(raw: String?): String? {
+            val value = raw?.trim()?.removeSuffix("F")?.removeSuffix("f") ?: return null
+            return value.takeIf { it.matches(Regex("[0-9]{18,22}")) && it.any { c -> c != '0' } }
+        }
+
+        private fun readSystemProperty(key: String): String? {
+            return try {
+                val clazz = Class.forName("android.os.SystemProperties")
+                clazz.getMethod("get", String::class.java).invoke(null, key) as? String
+            } catch (_: Exception) {
+                null
+            }
+        }
+
         //获取设备名称
         fun getDeviceName(): String {
             return try {
