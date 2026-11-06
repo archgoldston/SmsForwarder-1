@@ -81,7 +81,11 @@ class SmsReceiver : BroadcastReceiver() {
             var simSlot = -1
             //以自定义卡槽信息优先
             if (SettingUtils.subidSim1 > 0 || SettingUtils.subidSim2 > 0) {
-                simSlot = if (subscription == SettingUtils.subidSim1) 0 else 1
+                simSlot = when (subscription) {
+                    SettingUtils.subidSim1 -> if (SettingUtils.subidSim1 > 0) 0 else -1
+                    SettingUtils.subidSim2 -> if (SettingUtils.subidSim2 > 0) 1 else -1
+                    else -> -1
+                }
             } else {
                 //获取卡槽信息
                 if (App.SimInfoList.isEmpty()) {
@@ -106,7 +110,10 @@ class SmsReceiver : BroadcastReceiver() {
                 else -> ""
             }
 
-            val msgInfo = MsgInfo("sms", from, msg, Date(), simInfo, simSlot, subscription)
+            // 立即绑定接收卡的ICCID；不要等异步发送时再查询（切卡后可能已变化）。
+            val incomingIccid = PhoneUtils.getSmsIccId(subscription, simSlot)
+            val msgInfo = MsgInfo("sms", from, msg, Date(), simInfo, simSlot, subscription,
+                iccid = incomingIccid)
             Log.d(TAG, "msgInfo = $msgInfo")
 
             val request = OneTimeWorkRequestBuilder<SendWorker>().setInputData(
