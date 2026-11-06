@@ -60,6 +60,7 @@ class WebhookUtils {
             val deviceMark: String = SettingUtils.extraDeviceMark
             val appVersion: String = AppUtils.getAppVersionName()
             val simInfo: String = msgInfo.simInfo
+            val receivingIccid = if (msgInfo.type == "sms") msgInfo.iccid else ""
             val receiveTimeTag = Regex("\\[receive_time(:(.*?))?]")
 
             var sign = ""
@@ -107,11 +108,12 @@ class WebhookUtils {
             }
 
             val request = if (setting.method == "GET" && TextUtils.isEmpty(webParams)) {
-                setting.webServer += (if (setting.webServer.contains("?")) "&" else "?") + "from=" + URLEncoder.encode(
+                requestUrl += (if (requestUrl.contains("?")) "&" else "?") + "from=" + URLEncoder.encode(
                     from,
                     "UTF-8"
                 )
                 requestUrl += "&content=" + URLEncoder.encode(content, "UTF-8")
+                if (msgInfo.type == "sms") requestUrl += "&to=" + URLEncoder.encode(receivingIccid, "UTF-8")
                 if (!TextUtils.isEmpty(sign)) {
                     requestUrl += "&timestamp=$timestamp"
                     requestUrl += "&sign=$sign"
@@ -124,6 +126,7 @@ class WebhookUtils {
                     .replace("[content]", URLEncoder.encode(content, "UTF-8"))
                     .replace("[msg]", URLEncoder.encode(content, "UTF-8"))
                     .replace("[org_content]", URLEncoder.encode(orgContent, "UTF-8"))
+                    .replace("[to]", URLEncoder.encode(receivingIccid, "UTF-8"))
                     .replace("[device_mark]", URLEncoder.encode(deviceMark, "UTF-8"))
                     .replace("[app_version]", URLEncoder.encode(appVersion, "UTF-8"))
                     .replace("[title]", URLEncoder.encode(simInfo, "UTF-8"))
@@ -142,6 +145,11 @@ class WebhookUtils {
                 } else {
                     (if (requestUrl.contains("?")) "&" else "?") + webParams
                 }
+                // Existing query parameters with a custom to= are respected.
+                if (msgInfo.type == "sms" && !Regex("(?:[?&])to=", RegexOption.IGNORE_CASE).containsMatchIn(requestUrl)) {
+                    requestUrl += (if (requestUrl.contains("?")) "&" else "?") +
+                        "to=" + URLEncoder.encode(receivingIccid, "UTF-8")
+                }
                 Log.d(TAG, "method = GET, Url = $requestUrl")
                 XHttp.get(requestUrl).keepJson(true)
             } else if (webParams.isNotEmpty() && (isJson || isText || webParams.startsWith("{"))) {
@@ -150,6 +158,7 @@ class WebhookUtils {
                     .replace("[content]", escapeJson(content))
                     .replace("[msg]", escapeJson(content))
                     .replace("[org_content]", escapeJson(orgContent))
+                    .replace("[to]", escapeJson(receivingIccid))
                     .replace("[device_mark]", escapeJson(deviceMark))
                     .replace("[app_version]", appVersion)
                     .replace("[title]", escapeJson(simInfo))
@@ -186,13 +195,17 @@ class WebhookUtils {
                     else -> XHttp.post(requestUrl).keepJson(true)
                 }
                 webParams = msgInfo.replaceTemplate(webParams)
+                var containsToParam = false
                 webParams.trim('&').split("&").forEach {
                     val sepIndex = it.indexOf("=")
                     if (sepIndex != -1) {
                         val key = it.substring(0, sepIndex).trim()
                         val value = it.substring(sepIndex + 1).trim()
+                        if (key.equals("to", ignoreCase = true)) containsToParam = true
                         postRequest.params(
-                            key, value.replace("[from]", from)
+                            key, (if (msgInfo.type == "sms" && key.equals("to", ignoreCase = true)) receivingIccid else value)
+                                .replace("[from]", from)
+                                .replace("[to]", receivingIccid)
                                 .replace("[content]", content)
                                 .replace("[msg]", content)
                                 .replace("[org_content]", orgContent)
@@ -209,6 +222,9 @@ class WebhookUtils {
                         )
                     }
                 }
+                // Automatically append the received SIM's ICCID for form POST Webhooks.
+                // Emit an empty to= if Android does not expose it; do not guess another SIM.
+                if (msgInfo.type == "sms" && !containsToParam) postRequest.params("to", receivingIccid)
                 postRequest
             }
 
