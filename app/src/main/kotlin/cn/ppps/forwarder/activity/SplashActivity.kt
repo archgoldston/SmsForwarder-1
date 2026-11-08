@@ -2,6 +2,7 @@ package cn.ppps.forwarder.activity
 
 import android.annotation.SuppressLint
 import android.view.KeyEvent
+import cn.ppps.forwarder.App
 import cn.ppps.forwarder.R
 import cn.ppps.forwarder.utils.CommonUtils.Companion.showPrivacyDialog
 import cn.ppps.forwarder.utils.SettingUtils
@@ -27,8 +28,11 @@ class SplashActivity : BaseSplashActivity(), CancelAdapt {
      * activity启动后的初始化
      */
     override fun onCreateActivity() {
-        // 即使后台服务已常驻、Application 不再触发，点击桌面图标时仍重试 IMEI 占位符。
-        SettingUtils.fillDeviceNameFromImeiIfNeeded()
+        // 仅限新进程首次通过桌面入口启动；原进程返回桌面后再打开不触发。
+        // 开机自启由 BootCompletedReceiver 单独处理，不弹出界面。
+        App.checkImeiPlaceholderOnColdUiLaunch()
+        // 空白设备名称的自动填写功能依然有效。
+        SettingUtils.fillBlankDeviceNameFromImeiIfNeeded()
         initSplashView(R.drawable.xui_config_bg_splash)
         startSplash(false)
     }
