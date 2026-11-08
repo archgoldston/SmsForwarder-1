@@ -27,6 +27,8 @@ class SplashActivity : BaseSplashActivity(), CancelAdapt {
      * activity启动后的初始化
      */
     override fun onCreateActivity() {
+        // 即使后台服务已常驻、Application 不再触发，点击桌面图标时仍重试 IMEI 占位符。
+        SettingUtils.fillDeviceNameFromImeiIfNeeded()
         initSplashView(R.drawable.xui_config_bg_splash)
         startSplash(false)
     }
