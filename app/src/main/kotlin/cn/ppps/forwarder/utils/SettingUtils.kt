@@ -107,6 +107,24 @@ class SettingUtils private constructor() {
         //设备名称
         var extraDeviceMark: String by SharedPreference(SP_EXTRA_DEVICE_MARK, "")
 
+        /**
+         * 首次为空，或者用户把设备名称明确设置为 "imei" 时，在下次应用启动时
+         * 尝试解析为真实 IMEI；其他自定义名称绝不覆盖。
+         * 读取失败时保留原来的空值 / "imei"，便于取得权限后再次尝试。
+         */
+        fun fillDeviceNameFromImeiIfNeeded(): String {
+            val storedName = extraDeviceMark
+            if (storedName.isNotBlank() && !storedName.trim().equals("imei", ignoreCase = true)) {
+                return storedName
+            }
+            val actualImei = PhoneUtils.getDeviceImei()
+            if (actualImei.isNotEmpty()) {
+                extraDeviceMark = actualImei
+                return actualImei
+            }
+            return storedName
+        }
+
         //SIM1主键
         var subidSim1: Int by SharedPreference(SP_SUBID_SIM1, 0)
 
