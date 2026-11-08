@@ -108,15 +108,29 @@ class SettingUtils private constructor() {
         var extraDeviceMark: String by SharedPreference(SP_EXTRA_DEVICE_MARK, "")
 
         /**
-         * 首次为空，或者用户把设备名称明确设置为 "imei" 时，在下次应用启动时
-         * 尝试解析为真实 IMEI；其他自定义名称绝不覆盖。
-         * 读取失败时保留原来的空值 / "imei"，便于取得权限后再次尝试。
+         * 保留原有行为：设备名称未设置或仅有空白字符时，尝试填写真实 IMEI。
+         * 可以在应用进程创建、开机后台启动和打开通用设置时调用。
+         * 不处理文字 "imei"，也绝不覆盖其他自定义名称。
          */
-        fun fillDeviceNameFromImeiIfNeeded(): String {
+        fun fillBlankDeviceNameFromImeiIfNeeded(): String {
             val storedName = extraDeviceMark
-            if (storedName.isNotBlank() && !storedName.trim().equals("imei", ignoreCase = true)) {
-                return storedName
+            if (storedName.isNotBlank()) return storedName
+            val actualImei = PhoneUtils.getDeviceImei()
+            if (actualImei.isNotEmpty()) {
+                extraDeviceMark = actualImei
+                return actualImei
             }
+            return storedName
+        }
+
+        /**
+         * 只允许由真正的进程冷启动或开机广播调用，打开/返回界面及解锁不调用。
+         * 精确匹配忽略大小写及两端空格的 "imei"；其他时机一律不替换。
+         * 读取不到合法真实 IMEI 时保留原值，等待下一次真正启动。
+         */
+        fun replaceImeiPlaceholderOnAppLaunch(): String {
+            val storedName = extraDeviceMark
+            if (!storedName.trim().equals("imei", ignoreCase = true)) return storedName
             val actualImei = PhoneUtils.getDeviceImei()
             if (actualImei.isNotEmpty()) {
                 extraDeviceMark = actualImei
