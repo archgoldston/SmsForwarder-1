@@ -973,9 +973,9 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding?>(), View.OnClickL
 
     //设置设备名称
     private fun editAddExtraDeviceMark(etExtraDeviceMark: EditText) {
-        // 为空或手动填写 "imei" 时，下次启动/重新进入设置时转为真实 IMEI。
-        // 自定义名称不覆盖，获取失败保留原值。
-        etExtraDeviceMark.setText(SettingUtils.fillDeviceNameFromImeiIfNeeded())
+        // 进入通用设置仅对空设备名称尝试补 IMEI。
+        // 用户写入的 "imei" 必须等进程真正重新启动（含开机自启）才会替换。
+        etExtraDeviceMark.setText(SettingUtils.fillBlankDeviceNameFromImeiIfNeeded())
         etExtraDeviceMark.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence, start: Int, before: Int, count: Int) {}
