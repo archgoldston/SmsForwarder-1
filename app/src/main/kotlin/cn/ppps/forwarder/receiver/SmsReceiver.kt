@@ -28,6 +28,7 @@ class SmsReceiver : BroadcastReceiver() {
     private var msg = ""
 
     override fun onReceive(context: Context, intent: Intent) {
+        App.markBackgroundStartWithoutImeiReplacement()
         try {
             //纯客户端模式
             if (SettingUtils.enablePureClientMode) return

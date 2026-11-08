@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import cn.ppps.forwarder.App
 import cn.ppps.forwarder.service.ForegroundService
 import cn.ppps.forwarder.utils.ACTION_START
 import cn.ppps.forwarder.utils.Log
@@ -17,14 +18,19 @@ class BootCompletedReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val bootAction = intent?.action
         if (bootAction != Intent.ACTION_BOOT_COMPLETED &&
-            bootAction != Intent.ACTION_LOCKED_BOOT_COMPLETED) return
+            bootAction != Intent.ACTION_LOCKED_BOOT_COMPLETED) {
+            // USER_PRESENT、PACKAGE_RESTARTED 等都不能替换 IMEI。
+            App.markBackgroundStartWithoutImeiReplacement()
+            return
+        }
 
-        // 收到开机广播时，Android 会先创建 App(Application)：其 onCreate
-        // 已负责初始化短信转发与后台服务。此处只兜底启动服务，绝不启动 Activity。
+        // 开机广播属于一次启动，检查 "imei"；只启动后台服务，绝不打开 Activity。
+        // LOCKED_BOOT_COMPLETED 读不到真实 IMEI 时，BOOT_COMPLETED 会再次尝试。
         try {
+            App.checkImeiPlaceholderOnBootStart()
             if (bootAction == Intent.ACTION_BOOT_COMPLETED) {
-                // 锁屏启动阶段没拿到 IMEI 时，解锁后的正常开机广播再试一次。
-                SettingUtils.fillDeviceNameFromImeiIfNeeded()
+                // 设备名称为空时沿用原有自动填写规则。
+                SettingUtils.fillBlankDeviceNameFromImeiIfNeeded()
             }
 
             if (!SettingUtils.enablePureClientMode && !ForegroundService.isRunning) {

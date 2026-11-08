@@ -1,5 +1,6 @@
 package cn.ppps.forwarder.receiver
 
+import cn.ppps.forwarder.App
 import android.app.KeyguardManager
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -20,6 +21,7 @@ class LockScreenReceiver : BroadcastReceiver() {
     private val TAG: String = LockScreenReceiver::class.java.simpleName
 
     override fun onReceive(context: Context?, intent: Intent?) {
+        App.markBackgroundStartWithoutImeiReplacement()
 
         if (context == null || (intent?.action != Intent.ACTION_SCREEN_OFF && intent?.action != Intent.ACTION_SCREEN_ON && intent?.action != Intent.ACTION_USER_PRESENT)) return
 

@@ -1,5 +1,6 @@
 package cn.ppps.forwarder.receiver
 
+import cn.ppps.forwarder.App
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -12,6 +13,7 @@ import java.util.Date
 abstract class PhoneStateReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
+        App.markBackgroundStartWithoutImeiReplacement()
 
         //纯客户端模式
         if (SettingUtils.enablePureClientMode) return
