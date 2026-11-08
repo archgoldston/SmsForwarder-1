@@ -180,6 +180,10 @@ class App : Application(), CactusCallback, Configuration.Provider by Core {
             context = applicationContext
             initLibs()
 
+            //应用进程启动时（包括开机后台启动），将空设备名称或 "imei" 转为真实 IMEI。
+            //没有权限 / 系统限制读不到时保留原值，下次启动再试。
+            SettingUtils.fillDeviceNameFromImeiIfNeeded()
+
             //纯客户端模式
             if (SettingUtils.enablePureClientMode) return
 
