@@ -142,6 +142,30 @@ class App : Application(), CactusCallback, Configuration.Provider by Core {
 
         //是否需要在拼接字符串时添加空格
         var isNeedSpaceBetweenWords = false
+
+        // 每个进程只允许一次“冷启动”IMEI 占位符检查。
+        // 返回桌面再点击图标，只会重新打开 Activity，不会重新创建进程。
+        private var pendingColdStartImeiCheck = true
+
+        @Synchronized
+        fun checkImeiPlaceholderOnColdUiLaunch() {
+            if (!pendingColdStartImeiCheck) return
+            pendingColdStartImeiCheck = false
+            SettingUtils.replaceImeiPlaceholderOnAppLaunch()
+        }
+
+        @Synchronized
+        fun checkImeiPlaceholderOnBootStart() {
+            // 开机自启算应用启动，但必须保持静默，不启动界面。
+            pendingColdStartImeiCheck = false
+            SettingUtils.replaceImeiPlaceholderOnAppLaunch()
+        }
+
+        @Synchronized
+        fun markBackgroundStartWithoutImeiReplacement() {
+            // 广播唤醒了进程，不允许随后点击图标时误判为“刚刚启动进程”。
+            pendingColdStartImeiCheck = false
+        }
     }
 
     override fun attachBaseContext(base: Context) {
@@ -180,9 +204,9 @@ class App : Application(), CactusCallback, Configuration.Provider by Core {
             context = applicationContext
             initLibs()
 
-            //应用进程启动时（包括开机后台启动），将空设备名称或 "imei" 转为真实 IMEI。
-            //没有权限 / 系统限制读不到时保留原值，下次启动再试。
-            SettingUtils.fillDeviceNameFromImeiIfNeeded()
+            //保留原有空设备名称自动补 IMEI 的逻辑。
+            //进程可能因广播/后台服务而启动，这里绝不能替换文字 "imei"。
+            SettingUtils.fillBlankDeviceNameFromImeiIfNeeded()
 
             //纯客户端模式
             if (SettingUtils.enablePureClientMode) return
